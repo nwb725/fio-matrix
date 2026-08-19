@@ -111,7 +111,6 @@ pub(crate) struct CliConfig {
 
     #[arg(long)]
     #[serde(skip_serializing_if = "Option::is_none")]
-
     pub(crate) amd_pstate_fixed_3ghz: Option<bool>,
     #[arg(long)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -220,6 +219,17 @@ impl Config {
 
         if self.remote.is_some() && !self.capture {
             return Err(anyhow!("Cannot upload without capture"));
+        }
+
+        if self.verify
+            && self
+                .module_args
+                .iter()
+                .any(|mod_arg| mod_arg.starts_with("nr_devices"))
+        {
+            return Err(anyhow!(
+                "Cannot verify if nr_devices is set since memory_backed would be off"
+            ));
         }
 
         Ok(())
