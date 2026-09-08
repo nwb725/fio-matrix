@@ -8,6 +8,7 @@ use anyhow::Context;
 use anyhow::Result;
 use indicatif::ProgressBar;
 use logging::MemoryAppender;
+use std::fs::read_to_string;
 use std::io::IsTerminal;
 use std::io::Write;
 use std::path::Path;
@@ -541,6 +542,29 @@ fn unload_module(config: &config::Config) -> Result<()> {
     Ok(())
 }
 
+fn verify_config(config: &config::Config, configfs_path: PathBuf) -> Result<()> {
+    let read_compare = |cfg: u64, cfg_name: &str| -> Result<()> {
+        let cfg_val = read_to_string(configfs_path.clone().tap_mut(|p| p.push(cfg_name)))?;
+        if cfg_val == cfg.to_string() {
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "Error, actual value of '{cfg_name}' differed from the provided value '{cfg}' vs actual value: '{cfg_val}'"
+            ))
+        }
+    };
+    read_compare(config.block_cfg.block_size.unwrap(), "blocksize")?;
+    read_compare(config.block_cfg.completion_nsec.unwrap(), "completion_nsec")?;
+    read_compare(config.block_cfg.hw_queue_depth.unwrap(), "hw_queue_depth")?;
+    read_compare(
+        config.block_cfg.memory_backed.unwrap().into(),
+        "memory_backed",
+    )?;
+    read_compare(config.block_cfg.completion_nsec.unwrap(), "completion_nsec")?;
+    read_compare(config.block_cfg.size.unwrap(), "size")?;
+    Ok(())
+}
+
 fn setup_cnull(config: &config::Config) -> Result<()> {
     use std::fs::create_dir;
     let control_path =
@@ -588,7 +612,7 @@ fn setup_cnull(config: &config::Config) -> Result<()> {
     write_control_file("size", &config.block_cfg.size.unwrap().to_string()).context("size")?; // 4G
     write_control_file("power", "1").context("power")?; // Instantiate device
 
-    Ok(())
+    verify_config(config, control_path)
 }
 
 fn teardown_cnull() -> Result<()> {
@@ -647,7 +671,7 @@ fn setup_rnull_configfs(config: &config::Config) -> Result<()> {
     write_control_file("size", &config.block_cfg.size.unwrap().to_string()).context("size")?; // 4G
     write_control_file("power", "1").context("power")?; // Instantiate device
 
-    Ok(())
+    verify_config(config, control_path)
 }
 
 fn teardown_rnull_configfs() -> Result<()> {
