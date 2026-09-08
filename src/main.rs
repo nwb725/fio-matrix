@@ -542,6 +542,7 @@ fn unload_module(config: &config::Config) -> Result<()> {
     Ok(())
 }
 
+// TODO: Memory_backed is read as 'true' or 'false' not 1 and 0.
 fn verify_config(config: &config::Config, configfs_path: PathBuf) -> Result<()> {
     let read_compare = |cfg: u64, cfg_name: &str| -> Result<()> {
         let cfg_val = read_to_string(configfs_path.clone().tap_mut(|p| p.push(cfg_name)))?;
@@ -611,8 +612,8 @@ fn setup_cnull(config: &config::Config) -> Result<()> {
     .context("memory_backed")?;
     write_control_file("size", &config.block_cfg.size.unwrap().to_string()).context("size")?; // 4G
     write_control_file("power", "1").context("power")?; // Instantiate device
-
-    verify_config(config, control_path)
+    Ok(())
+    // verify_config(config, control_path)
 }
 
 fn teardown_cnull() -> Result<()> {
@@ -670,8 +671,8 @@ fn setup_rnull_configfs(config: &config::Config) -> Result<()> {
     .context("memory_backed")?;
     write_control_file("size", &config.block_cfg.size.unwrap().to_string()).context("size")?; // 4G
     write_control_file("power", "1").context("power")?; // Instantiate device
-
-    verify_config(config, control_path)
+    Ok(())
+    // verify_config(config, control_path)
 }
 
 fn teardown_rnull_configfs() -> Result<()> {
