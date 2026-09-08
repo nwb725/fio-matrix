@@ -545,7 +545,7 @@ fn unload_module(config: &config::Config) -> Result<()> {
 fn verify_config(config: &config::Config, configfs_path: PathBuf) -> Result<()> {
     let read_compare = |cfg: u64, cfg_name: &str| -> Result<()> {
         let cfg_val = read_to_string(configfs_path.clone().tap_mut(|p| p.push(cfg_name)))?;
-        if cfg_val == cfg.to_string() {
+        if cfg_val.trim() == cfg.to_string() {
             Ok(())
         } else {
             Err(anyhow!(
