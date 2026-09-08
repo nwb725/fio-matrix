@@ -228,6 +228,7 @@ fn run_workloads(
         .cartesian_product(config.queue_depths.clone())
         .collect::<Vec<_>>();
 
+    // TODO: Is this not a hack?
     if config.device == "nullb0" {
         let _ = teardown_cnull();
     }
@@ -466,11 +467,11 @@ fn setup(config: &config::Config) -> Result<()> {
     }
 
     if config.configure_c_nullblk {
-        setup_cnull(&config.device).context("setup cnull")?;
+        setup_cnull(config).context("setup cnull")?;
     }
 
     if config.configfs_rnull {
-        setup_rnull_configfs(&config.device).context("configfs rnull")?;
+        setup_rnull_configfs(config).context("configfs rnull")?;
     }
 
     set_block_scheduler(&config.device).context("Set block scheduler")?;
@@ -540,16 +541,17 @@ fn unload_module(config: &config::Config) -> Result<()> {
     Ok(())
 }
 
-fn setup_cnull(name: &str) -> Result<()> {
+fn setup_cnull(config: &config::Config) -> Result<()> {
     use std::fs::create_dir;
-    let control_path = PathBuf::from("/sys/kernel/config/nullb").tap_mut(|p| p.push(name));
+    let control_path =
+        PathBuf::from("/sys/kernel/config/nullb").tap_mut(|p| p.push(&config.device));
 
     log::info!("Configuring null block at {control_path:?}");
 
     control_path
         .clone()
         .pipe(create_dir)
-        .context("create debugfs folder")?;
+        .context("create configfs folder")?;
 
     let write_control_file = |name: &str, value: &str| -> Result<()> {
         control_path
@@ -561,14 +563,29 @@ fn setup_cnull(name: &str) -> Result<()> {
             .context("Failed to write control path")
     };
 
-    write_control_file("blocksize", "4096").context("blocksize")?;
-    write_control_file("completion_nsec", "0").context("completion_nsec")?;
-    write_control_file("irqmode", "0").context("irqmode")?; // IRQ_NONE
-    write_control_file("queue_mode", "2").context("queue_mode")?; // MQ
-    write_control_file("hw_queue_depth", "256").context("hw_queue_depth")?;
-    write_control_file("memory_backed", "1").context("memory_backed")?;
-    write_control_file("size", "4096").context("size")?; // 4G
-    write_control_file("poll_queues", "0").context("poll_queues")?;
+    write_control_file(
+        "blocksize",
+        &config.block_cfg.block_size.unwrap().to_string(),
+    )
+    .context("blocksize")?;
+    write_control_file(
+        "completion_nsec",
+        &config.block_cfg.completion_nsec.unwrap().to_string(),
+    )
+    .context("completion_nsec")?;
+    write_control_file("irqmode", &config.block_cfg.irq_mode.unwrap().to_string())
+        .context("irqmode")?;
+    write_control_file(
+        "hw_queue_depth",
+        &config.block_cfg.hw_queue_depth.unwrap().to_string(),
+    )
+    .context("hw_queue_depth")?;
+    write_control_file(
+        "memory_backed",
+        &config.block_cfg.memory_backed.unwrap().to_string(),
+    )
+    .context("memory_backed")?;
+    write_control_file("size", &config.block_cfg.size.unwrap().to_string()).context("size")?; // 4G
     write_control_file("power", "1").context("power")?; // Instantiate device
 
     Ok(())
@@ -584,9 +601,10 @@ fn teardown_cnull() -> Result<()> {
     Ok(())
 }
 
-fn setup_rnull_configfs(name: &str) -> Result<()> {
+fn setup_rnull_configfs(config: &config::Config) -> Result<()> {
     use std::fs::create_dir;
-    let control_path = PathBuf::from("/sys/kernel/config/rnull").tap_mut(|p| p.push(name));
+    let control_path =
+        PathBuf::from("/sys/kernel/config/rnull").tap_mut(|p| p.push(&config.device));
 
     log::info!("Configuring null block at {control_path:?}");
 
@@ -604,11 +622,29 @@ fn setup_rnull_configfs(name: &str) -> Result<()> {
             .write_all(value.as_bytes())
             .context("Failed to write control path")
     };
-
-    write_control_file("blocksize", "4096").context("blocksize")?;
-    write_control_file("irqmode", "0").context("irqmode")?; // IRQ_NONE
-    write_control_file("size", "4096").context("size")?; // 4G
-    write_control_file("rotational", "0").context("rotational")?; // Not rotating
+    write_control_file(
+        "blocksize",
+        &config.block_cfg.block_size.unwrap().to_string(),
+    )
+    .context("blocksize")?;
+    write_control_file(
+        "completion_nsec",
+        &config.block_cfg.completion_nsec.unwrap().to_string(),
+    )
+    .context("completion_nsec")?;
+    write_control_file("irqmode", &config.block_cfg.irq_mode.unwrap().to_string())
+        .context("irqmode")?;
+    write_control_file(
+        "hw_queue_depth",
+        &config.block_cfg.hw_queue_depth.unwrap().to_string(),
+    )
+    .context("hw_queue_depth")?;
+    write_control_file(
+        "memory_backed",
+        &config.block_cfg.memory_backed.unwrap().to_string(),
+    )
+    .context("memory_backed")?;
+    write_control_file("size", &config.block_cfg.size.unwrap().to_string()).context("size")?; // 4G
     write_control_file("power", "1").context("power")?; // Instantiate device
 
     Ok(())
@@ -707,7 +743,7 @@ fn calculate_nr_hugepages(config: &config::Config) -> Result<u64> {
         .max()
         .ok_or(anyhow!("jobcounts empty"))?
         .clone()
-        .try_into()?;
+        .into();
 
     let block_size: Result<Vec<byte_unit::Byte>, _> = config
         .block_sizes
@@ -727,7 +763,7 @@ fn calculate_nr_hugepages(config: &config::Config) -> Result<u64> {
         .max()
         .ok_or(anyhow!("queue_depths empty"))?
         .clone()
-        .try_into()?;
+        .into();
 
     calculate_nr_hugepages_int(queue_depth, block_size, jobcount)
 }

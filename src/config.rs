@@ -23,6 +23,45 @@ pub(crate) struct Cli {
     pub(crate) cli_config: CliConfig,
 }
 
+#[derive(Deserialize, Debug, Clone, Serialize, Args)]
+pub(crate) struct BlockConfig {
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) block_size: Option<u64>,
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) completion_nsec: Option<u64>,
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) irq_mode: Option<u32>,
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) hw_queue_depth: Option<u64>,
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) memory_backed: Option<u32>,
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) size: Option<u64>,
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) rotational: Option<u32>,
+}
+
+impl Default for BlockConfig {
+    fn default() -> Self {
+        Self {
+            block_size: Some(4096),
+            completion_nsec: Some(0),
+            irq_mode: Some(0),
+            hw_queue_depth: Some(64),
+            memory_backed: Some(0),
+            size: Some(4096),
+            rotational: Some(0),
+        }
+    }
+}
+
 #[derive(Args, Deserialize, Debug, Serialize)]
 pub(crate) struct CliConfig {
     #[arg(long)]
@@ -127,6 +166,10 @@ pub(crate) struct CliConfig {
     #[arg(long)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) use_hugepages: Option<bool>,
+
+    #[command(flatten)]
+    #[serde(flatten)]
+    pub(crate) block_cfg: BlockConfig,
 }
 
 #[derive(Serialize, Deserialize, ValueEnum, Copy, Clone, Debug)]
@@ -197,6 +240,9 @@ pub(crate) struct Config {
 
     #[serde(default)]
     pub(crate) use_hugepages: bool,
+
+    #[serde(flatten)]
+    pub(crate) block_cfg: BlockConfig,
 }
 
 impl Config {
@@ -301,6 +347,7 @@ impl Default for Config {
             disable_boost_intel: false,
             amd_pstate_fixed_3ghz: false,
             use_hugepages: false,
+            block_cfg: BlockConfig::default(),
         }
     }
 }
