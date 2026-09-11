@@ -9,6 +9,7 @@ use anyhow::Result;
 use indicatif::ProgressBar;
 use logging::MemoryAppender;
 use std::fs::read_to_string;
+use std::io::ErrorKind::AddrNotAvailable;
 use std::io::IsTerminal;
 use std::io::Write;
 use std::path::Path;
@@ -542,9 +543,28 @@ fn unload_module(config: &config::Config) -> Result<()> {
     Ok(())
 }
 
+fn get_block_options<'a>(configfs_path: PathBuf) -> Result<Vec<String>> {
+    let mut available_options_path = configfs_path;
+    available_options_path.set_file_name("features");
+    let available_options = read_to_string(available_options_path)?;
+    Ok(available_options
+        .clone()
+        .split(",")
+        .map(String::from)
+        .collect())
+}
+
 // TODO: Memory_backed is read as 'true' or 'false' not 1 and 0.
-fn verify_config(config: &config::Config, configfs_path: PathBuf) -> Result<()> {
+fn verify_config(
+    config: &config::Config,
+    configfs_path: PathBuf,
+    options: Vec<String>,
+) -> Result<()> {
     let read_compare = |cfg: u64, cfg_name: &str| -> Result<()> {
+        // If option does not exist in configfs simply say ok.
+        if !options.contains(&cfg_name.to_string()) {
+            return Ok(());
+        }
         let cfg_val = read_to_string(configfs_path.clone().tap_mut(|p| p.push(cfg_name)))?;
         if cfg_val.trim() == cfg.to_string() {
             Ok(())
@@ -554,6 +574,7 @@ fn verify_config(config: &config::Config, configfs_path: PathBuf) -> Result<()> 
             ))
         }
     };
+
     read_compare(config.block_cfg.block_size.unwrap(), "blocksize")?;
     read_compare(config.block_cfg.completion_nsec.unwrap(), "completion_nsec")?;
     read_compare(config.block_cfg.hw_queue_depth.unwrap(), "hw_queue_depth")?;
@@ -578,7 +599,12 @@ fn setup_cnull(config: &config::Config) -> Result<()> {
         .pipe(create_dir)
         .context("create configfs folder")?;
 
+    let options = get_block_options(control_path.clone())?;
+
     let write_control_file = |name: &str, value: &str| -> Result<()> {
+        if !options.contains(&name.to_string()) {
+            return Ok(());
+        }
         control_path
             .clone()
             .tap_mut(|p| p.push(name))
@@ -638,7 +664,12 @@ fn setup_rnull_configfs(config: &config::Config) -> Result<()> {
         .pipe(create_dir)
         .context("create debugfs folder")?;
 
+    let options = get_block_options(control_path.clone())?;
+
     let write_control_file = |name: &str, value: &str| -> Result<()> {
+        if !options.contains(&name.to_string()) {
+            return Ok(());
+        }
         control_path
             .clone()
             .tap_mut(|p| p.push(name))
