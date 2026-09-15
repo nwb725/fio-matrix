@@ -665,9 +665,11 @@ fn setup_rnull_configfs(config: &config::Config) -> Result<()> {
         .context("create debugfs folder")?;
 
     let options = get_block_options(control_path.clone())?;
+    log::debug!("Available control files in {control_path:?}: {options:?}");
 
     let write_control_file = |name: &str, value: &str| -> Result<()> {
         if !options.contains(&name.to_string()) {
+            log::warn!("skipping unsupported control file `{name}` (wanted value {value})");
             return Ok(());
         }
         control_path
