@@ -669,7 +669,7 @@ fn setup_rnull_configfs(config: &config::Config) -> Result<()> {
 
     let write_control_file = |name: &str, value: &str| -> Result<()> {
         // Giga hacked fix configfs in rnull
-        if !options.contains(&name.to_string()) && name != "hw_queue_depth" && name != "power" {
+        if !options.contains(&name.to_string()) && name != "power" {
             log::warn!("skipping unsupported control file `{name}` (wanted value {value})");
             return Ok(());
         }
